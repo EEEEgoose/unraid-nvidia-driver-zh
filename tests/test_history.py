@@ -77,6 +77,13 @@ class HistoryTest(unittest.TestCase):
         source = source.replace('/usr/local/emhttp/plugins/dynamix/scripts/notify', str(self.bin / 'notify'))
         self.php = self.root / 'driver-history.php'
         self.php.write_text(source)
+        include = ROOT / 'source/usr/local/emhttp/plugins/nvidia-driver/include'
+        download = self.root / 'download.sh'
+        shutil.copyfile(include / 'download.sh', download)
+        download.chmod(0o755)
+        self.ui_command = self.root / 'ui-exec.sh'
+        self.ui_command.write_text((include / 'exec.sh').read_text().replace('/usr/local/emhttp/plugins/nvidia-driver/include/download.sh', str(download)))
+        self.ui_command.chmod(0o755)
         for name, body in {
             'uname': 'printf "%s\\n" "$TEST_KERNEL"',
             'nvidia-smi': 'echo 580.20',
@@ -137,6 +144,23 @@ class HistoryTest(unittest.TestCase):
         self.metadata_failure = True
         self.assertEqual(self.run_php('boot').stdout, name)
         self.assertFalse(list(self.boot.rglob('*.part')))
+
+    def test_webui_command_streams_progress_and_failures_to_stdout(self):
+        name = f'nvidia-580.19-{KERNEL}-1.txz'
+        result = subprocess.run([str(self.ui_command), 'update_version', name], env=self.environment(), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('正在读取当前内核的驱动列表', result.stdout)
+        self.assertIn('正在下载 ' + name, result.stdout)
+        self.assertIn('已设为启动版本', result.stdout)
+        self.assertEqual(result.stderr, '')
+        before = self.settings.read_bytes()
+        failed = f'nvos-580.19-{KERNEL}-1.txz'
+        self.failed_path = '/download/' + failed
+        result = subprocess.run([str(self.ui_command), 'update_version', failed], env=self.environment(), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('下载失败', result.stdout)
+        self.assertEqual(result.stderr, '')
+        self.assertEqual(self.settings.read_bytes(), before)
 
     def test_failures_keep_settings_and_current_package(self):
         current = f'nvidia-580.20-{KERNEL}-1.txz'
