@@ -1,5 +1,5 @@
 Menu="Utilities"
-Title="Nvidia Driver"
+Title="Nvidia 驱动"
 Icon="nvidia-driver.png"
 ---
 <?php
@@ -53,7 +53,7 @@ $cur_drv_v = shell_exec("nvidia-smi | grep \"Driver Version\" | cut -d ' ' -f3")
 if (empty($cur_drv_v)) {
   $cur_drv_v = shell_exec("nvidia-settings --help | grep -oP '(?<=version )[\d\.]+'");
   if (empty($cur_drv_v)) {
-    $cur_drv_v = "ERROR: No driver found!";
+    $cur_drv_v = "错误：未检测到驱动！";
   }
 }
 
@@ -71,7 +71,7 @@ $unraid_version = parse_ini_file('/etc/unraid-version');
 <script>
 function changeVersion(form) {
     var package = form.drv_version.value;
-    openBox("/usr/local/emhttp/plugins/nvidia-driver/include/exec.sh&arg1=update_version&arg2="+package,"Downloading Package",600,800,true);
+    openBox("/usr/local/emhttp/plugins/nvidia-driver/include/exec.sh&arg1=update_version&arg2="+package,"正在下载驱动包",600,800,true);
     return false;
     }
 
@@ -82,6 +82,21 @@ function escapeHtml(value) {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+}
+
+function gpuSupportLabel(value) {
+    var labels = {
+      'proprietary-only': '仅支持专有内核模块',
+      'both': '支持开源和专有内核模块',
+      'open-only': '仅支持开源内核模块',
+      'unknown': '未知',
+      'best-available': '当前可用的最高版本',
+      'open-source': '开源内核驱动',
+      'production-branch': '生产分支',
+      'no-supportedchips-pages-fetched': '无法获取 NVIDIA 显卡支持列表，请检查网络后重试',
+      'device-id-not-listed-in-checked-versions': '已检查的驱动版本均未列出此设备 ID'
+    };
+    return Object.prototype.hasOwnProperty.call(labels, value) ? labels[value] : value;
 }
 
 var latestGpuSupportRows = [];
@@ -107,11 +122,11 @@ function updateGpuFilterButton() {
     }
 
     if (gpuSelectionFilterDisabled) {
-      button.value = 'Enable GPU-Based Filtering';
-      status.textContent = 'GPU-based driver filtering is disabled.';
+      button.value = '启用 GPU 兼容性筛选';
+      status.textContent = '已停用 GPU 兼容性筛选。';
     } else {
-      button.value = 'Disable GPU-Based Filtering';
-      status.textContent = 'GPU-based driver filtering is enabled.';
+      button.value = '停用 GPU 兼容性筛选';
+      status.textContent = '已启用 GPU 兼容性筛选。';
     }
 }
 
@@ -134,7 +149,7 @@ function renderGpuSupportRows(rows) {
     }
 
     if (!Array.isArray(rows) || rows.length === 0) {
-      container.innerHTML = '<p><i>No GPU support data available (nvidia-smi query failed or returned no devices).</i></p>';
+      container.innerHTML = '<p><i>暂无 GPU 兼容性数据（GPU 查询失败或未检测到设备）。</i></p>';
       return;
     }
 
@@ -143,29 +158,29 @@ function renderGpuSupportRows(rows) {
       html += '<p>';
       html += '<b>' + escapeHtml(row.gpu_index + ': ' + row.gpu_name) + '</b><br/>';
       if (row.detection_source) {
-        html += 'Detected via: <code>' + escapeHtml(row.detection_source) + '</code><br/>';
+        html += '检测方式： <code>' + escapeHtml(row.detection_source) + '</code><br/>';
       }
       if (row.chip_codename) {
-        html += 'Chip codename: <code>' + escapeHtml(row.chip_codename) + '</code><br/>';
+        html += '芯片代号： <code>' + escapeHtml(row.chip_codename) + '</code><br/>';
       }
       if (row.architecture) {
-        html += 'Architecture: <code>' + escapeHtml(row.architecture) + '</code><br/>';
+        html += '架构： <code>' + escapeHtml(row.architecture) + '</code><br/>';
       }
       if (row.kernel_module_support) {
-        html += 'Kernel module support: <b>' + escapeHtml(row.kernel_module_support) + '</b><br/>';
+        html += '内核模块支持： <b>' + escapeHtml(gpuSupportLabel(row.kernel_module_support)) + '</b><br/>';
       }
-      html += 'Device ID input: <code>' + escapeHtml(row.gpu_input_device_id || '') + '</code><br/>';
-      html += 'Normalized ID: <code>' + escapeHtml(row.device_id || '') + '</code><br/>';
+      html += '原始设备 ID： <code>' + escapeHtml(row.gpu_input_device_id || '') + '</code><br/>';
+      html += '标准设备 ID： <code>' + escapeHtml(row.device_id || '') + '</code><br/>';
 
       if (Array.isArray(row.valid_drivers) && row.valid_drivers.length > 0) {
-        html += 'Supported candidates: <b style="color:green">' + escapeHtml(row.valid_drivers.join(', ')) + '</b><br/>';
-        html += 'Recommended Driver: <b style="color:green">' + escapeHtml(row.recommended_driver || '') + '</b>';
+        html += '兼容的候选驱动： <b style="color:green">' + escapeHtml(row.valid_drivers.join(', ')) + '</b><br/>';
+        html += '推荐驱动： <b style="color:green">' + escapeHtml(row.recommended_driver || '') + '</b>';
         if (row.recommendation_source) {
-          html += ' <i>(' + escapeHtml(row.recommendation_source) + ')</i>';
+          html += ' <i>(' + escapeHtml(gpuSupportLabel(row.recommendation_source)) + ')</i>';
         }
       } else {
-        html += 'Supported candidates: <b style="color:tomato">none</b><br/>';
-        html += 'Reason: <i>' + escapeHtml(row.no_match_reason || 'unknown') + '</i>';
+        html += '兼容的候选驱动： <b style="color:tomato">无</b><br/>';
+        html += '原因： <i>' + escapeHtml(gpuSupportLabel(row.no_match_reason || 'unknown')) + '</i>';
       }
 
       html += '</p>';
@@ -280,7 +295,7 @@ function loadGpuSupport() {
         applyDriverOptionSupport(rows);
       })
       .catch(function(err) {
-        container.innerHTML = '<p><b style="color:tomato">Failed to load GPU support data.</b><br/><i>' + escapeHtml(err.message || 'Unknown error') + '</i></p>';
+        container.innerHTML = '<p><b style="color:tomato">GPU 兼容性数据加载失败。</b><br/><i>' + escapeHtml(err.message || '未知错误') + '</i></p>';
       });
 }
 
@@ -294,86 +309,86 @@ table tbody td {
 }
 </style>
 
-<h1 style="text-align: center;"><a href="https://forums.unraid.net/topic/98978-plugin-nvidia-driver/" target="_blank" rel="noopener"><span style="color: green;">Nvidia Driver Package</span></a></h1>
+<h1 style="text-align: center;"><a href="https://github.com/EEEEgoose/unraid-nvidia-driver-zh/issues" target="_blank" rel="noopener"><span style="color: green;">Nvidia 驱动管理</span></a></h1>
 <br/>
 
 <div style="display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;">
 
 <div style="width: 47%; min-width: 700px; max-width: 1260px; flex-wrap: wrap; margin: 10px;">
-<p><b><font size="+1">Nvidia Info:</font></b></p>
-            <p>Nvidia Driver Version: 
+<p><b><font size="+1">Nvidia 信息</font></b></p>
+            <p>Nvidia 驱动版本：
             <b style="color:green"><?php echo htmlspecialchars((string)$cur_drv_v, ENT_QUOTES, 'UTF-8'); ?></b></p>
         <? if (isset($module_license ) === true && trim($module_license ) === 'OPENSOURCE'): ?>
-            <p>Open Source Kernel Module: 
-            <b style="color:blue">Yes</b></p>
+            <p>开源内核模块：
+            <b style="color:blue">是</b></p>
         <? elseif (isset($module_license ) === true && trim($module_license ) === 'PROPRIETARY'): ?>
-            <p>Open Source Kernel Module: 
-            <b style="color:green">No</b></p>
+            <p>开源内核模块：
+            <b style="color:green">否</b></p>
         <? endif; ?>
           <?php
           $gpu_info = shell_exec("nvidia-smi --query-gpu=index,name,gpu_bus_id,uuid --format=csv,noheader | tr \",\" \"\n\" | sed 's/^[ \t]*//' | sed -e s/00000000://g | sed '0~4G' | sed 's/^[0-9]$/&:/'");
           ?>
-            <p>Installed GPU(s):<br/>
+            <p>已安装的 GPU：<br/>
           <b style="color:green"><?php echo nl2br(htmlspecialchars((string)$gpu_info, ENT_QUOTES, 'UTF-8')); ?></b></p><br/>
-            <p><b><font size="+1">GPU Driver Support:</font></b></p>
+            <p><b><font size="+1">GPU 驱动兼容性</font></b></p>
             <div id="gpu-support-content">
-              <p><i>Loading supported drivers...</i></p>
+              <p><i>正在加载驱动兼容性数据……</i></p>
             </div>
             <p>
-              <input type="button" id="toggle-gpu-driver-filter" value="Disable GPU-Based Filtering" onclick="toggleGpuDriverFilter()">
-              <span id="gpu-driver-filter-status">GPU-based driver filtering is enabled.</span>
+              <input type="button" id="toggle-gpu-driver-filter" value="停用 GPU 兼容性筛选" onclick="toggleGpuDriverFilter()">
+              <span id="gpu-driver-filter-status">已启用 GPU 兼容性筛选。</span>
             </p>
             <br/>
         </tr>
     </table>
     <? if (isset($selected_v ) === true && trim($selected_v ) === 'latest' || trim($selected_v ) === 'latest_prb' || trim($selected_v ) === 'latest_nfb'): ?>
 		<tr><td>
-		<b><font size="+1">Driver Update Notification</font></b>
+		<b><font size="+1">驱动更新通知</font></b>
 		</td></tr>
 		<tr><td>
 		<form id="s" method="post" >
 		<select name="updata_check_selected" required>
-                    <option <?php echo ( $update_check == "true") ? 'selected="selected"' : '' ?> value="true"> Enabled</option>
-                    <option <?php echo ( $update_check == "false") ? 'selected="selected"' : '' ?> value="false"> Disabled</option>
+                    <option <?php echo ( $update_check == "true") ? 'selected="selected"' : '' ?> value="true"> 启用</option>
+                    <option <?php echo ( $update_check == "false") ? 'selected="selected"' : '' ?> value="false"> 停用</option>
                 </select>
-                <input type="submit" name="changeUPDcheck" value="Change">
+                <input type="submit" name="changeUPDcheck" value="保存">
                 </form>
                 </td>
-                <tr><td><p>The Driver Update Notification, checks once a day (between 8 am and 10 am) whether a new version of the selected branch is available and, if necessary, downloads the new driver and sends a notification.</p>
-			<p><b>The server needs to be restarted in order to install the new driver.</b></p><br/>
+                <tr><td><p>每天上午 8 点至 10 点之间，检查一次所选分支是否有新版本；如有，则自动下载驱动并发送通知。时间以服务器时区为准。</p>
+			<p><b>下载完成后，需要重启服务器才能安装新驱动。</b></p><br/>
 		</tr></td>
 	  </table>
     <? endif; ?>
 </div>
 
 <div style="width: 47%; min-width: 700px; max-width: 1260px; margin: 10px;">
-<p><b><font size="+1">Select preferred driver version:</font></b></p>
+<p><b><font size="+1">选择驱动版本</font></b></p>
 <br/>
     <table>
             <form id="s" method="post" >
               <tr>
-                <td><b>Latest Versions:</b></td>
+                <td><b>最新分支：</b></td>
                 <td>
-                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_v_norm); ?>" value="latest" <?php echo ( $selected_v == "latest") ? 'checked="checked"' : ''; ?>/><font><b>latest</font>:</b> <?php echo htmlspecialchars("v" . $latest_v, ENT_QUOTES, 'UTF-8'); ?> </p>
+                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_v_norm); ?>" value="latest" <?php echo ( $selected_v == "latest") ? 'checked="checked"' : ''; ?>/><font><b>最新版（latest）</font>:</b> <?php echo htmlspecialchars("v" . $latest_v, ENT_QUOTES, 'UTF-8'); ?> </p>
                     <? if (isset($latest_prb_v ) === true && trim($latest_prb_v ) !== ''): ?>
-                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_prb_v_norm); ?>" value="latest_prb" <?php echo ( $selected_v == "latest_prb") ? 'checked="checked"' : ''; ?>/><b><font color = "green"><b>Production Branch</font>:</b>  <?php echo htmlspecialchars("v" . $latest_prb_v, ENT_QUOTES, 'UTF-8'); ?> </p>
+                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_prb_v_norm); ?>" value="latest_prb" <?php echo ( $selected_v == "latest_prb") ? 'checked="checked"' : ''; ?>/><b><font color = "green"><b>生产分支（Production Branch）</font>:</b>  <?php echo htmlspecialchars("v" . $latest_prb_v, ENT_QUOTES, 'UTF-8'); ?> </p>
                     <? else: ?>
-                    <p><b><font color = "green">Production Branch</font>:</b> <i>Not found for this Unraid version!</i></p>
+                    <p><b><font color = "green">生产分支（Production Branch）</font>:</b> <i>当前 Unraid 版本暂无对应驱动包。</i></p>
                     <? endif; ?>
                     <? if (isset($latest_nfb_v ) === true && trim($latest_nfb_v ) !== ''): ?>
-                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_nfb_v_norm); ?>" value="latest_nfb" <?php echo ( $selected_v == "latest_nfb") ? 'checked="checked"' : ''; ?>/><b><font color = "tomato"><b>New Feature Branch</font>:</b> <?php echo htmlspecialchars("v" . $latest_nfb_v, ENT_QUOTES, 'UTF-8'); ?></p>
+                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_nfb_v_norm); ?>" value="latest_nfb" <?php echo ( $selected_v == "latest_nfb") ? 'checked="checked"' : ''; ?>/><b><font color = "tomato"><b>新功能分支（New Feature Branch）</font>:</b> <?php echo htmlspecialchars("v" . $latest_nfb_v, ENT_QUOTES, 'UTF-8'); ?></p>
                     <? else: ?>
-                    <p><b><font color = "tomato">New Feature Branch</font>:</b> <i>Not found for this Unraid version!</i></p>
+                    <p><b><font color = "tomato">新功能分支（New Feature Branch）</font>:</b> <i>当前 Unraid 版本暂无对应驱动包。</i></p>
                     <? endif; ?>
                     <? if (isset($latest_nos_v ) === true && trim($latest_nos_v ) !== ''): ?>
-                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_nos_v_norm); ?>" value="latest_nos" <?php echo ( $selected_v == "latest_nos") ? 'checked="checked"' : ''; ?>/><b><font color = "blue"><b>Open Source Driver</font>:</b> <?php echo htmlspecialchars("v" . $latest_nos_v, ENT_QUOTES, 'UTF-8'); ?><? echo (version_compare($unraid_version['version'], '7.0.0-rc.1.1', '<')) ? '<em><b> - Please see readme below!</b></em>' : ''; ?></p>
+                    <p><input type="radio" name="drv_version" data-driver-version="<?php echo htmlspecialchars((string)$latest_nos_v_norm); ?>" value="latest_nos" <?php echo ( $selected_v == "latest_nos") ? 'checked="checked"' : ''; ?>/><b><font color = "blue"><b>开源内核驱动（Open Source Driver）</font>:</b> <?php echo htmlspecialchars("v" . $latest_nos_v, ENT_QUOTES, 'UTF-8'); ?><? echo (version_compare($unraid_version['version'], '7.0.0-rc.1.1', '<')) ? '<em><b> — 请先阅读下方说明！</b></em>' : ''; ?></p>
                     <? else: ?>
-                    <p><b><font color = "blue">Open Source Driver</font>:</b> <i>Not found for this Unraid version!</i></p>
+                    <p><b><font color = "blue">开源内核驱动（Open Source Driver）</font>:</b> <i>当前 Unraid 版本暂无对应驱动包。</i></p>
                     <? endif; ?>
                 </td>
               </tr>
               <tr>
-                <td><b>Available Versions:</b></td><td>
+                <td><b>可用版本：</b></td><td>
                     <?php
                     krsort($eachlines);
                     foreach($eachlines as $lines){
@@ -392,25 +407,25 @@ table tbody td {
                 <td>
                 </td>
                 <td>
-                    <input type="button" value="Update & Download" onclick="changeVersion(this.form)">
+                    <input type="button" value="更新并下载" onclick="changeVersion(this.form)">
                 </td>
             </tr>
             </form>
             </table>
 	<table>
-		<p style="text-align: left; font-weight: bold;">ATTENTION: If you set the version to 'latest', 'Production Branch' or 'New Feature Branch' you either have to enable the Driver Update Notification (this will download the driver automatically) or if you disabled the Driver Update Notification you manually have to click the button "Update & Download" to download a newer driver.<br>Please keep in mind, to install a newer driver you have to reboot your server.</p>
+		<p style="text-align: left; font-weight: bold;">注意：选择“最新版”“生产分支”或“新功能分支”后，可启用“驱动更新通知”自动下载新版本；也可以停用通知，手动点击“更新并下载”。<br>新驱动下载完成后，需要重启服务器才能生效。</p>
 		<br>
-		<p><b><font size+1> Latest versions:</font></b></p>
+		<p><b><font size+1> 驱动分支说明：</font></b></p>
 		<ul>
 		  <p>
-		  <li><b>latest</b> - will always download the latest driver version available regardless of the branch</li><br>
-		  <li><b>Production Branch</b>  - This is the long lifecycle (i.e., multiple releases in a branch over a single year period) driver branch providing ISV Certification, optimal stability and performance, and regular security updates for NVIDIA RTX/Quadro professional customers. This driver was previously named, Optimal Driver for Enterprise (ODE), and is most commonly deployed in production systems at enterprises.</li><br>
-		  <li><b>New Feature Branch</b>  - This is a short lived branch driver (i.e., 1-2 releases per branch only) where new NVIDIA RTX/Quadro features are introduced and made available between Production Branch releases. New Feature Branch drivers, previously named, Quadro New Feature (QNF), typically provide support for new operating systems, third party hardware, and game engines.</li><br>
-		  <li><b>Open Source Driver</b>  - This package includes the Open Source Kernel modules and the libraries/execuatables from the proprietary Nvidia driver package.
-		  <br><b>Supported GPUs:</b> This driver package only supports Turing based cards and newer!
+		  <li><b>最新版（latest）</b> — 下载当前可用的最新驱动，不限定分支。</li><br>
+		  <li><b>生产分支（Production Branch）</b>  - 生命周期较长的驱动分支，一个分支通常在一年内发布多个版本，为 NVIDIA RTX/Quadro 专业用户提供 ISV 认证、稳定性和性能改进，以及定期安全更新。旧称 Optimal Driver for Enterprise（ODE），常用于企业生产环境。</li><br>
+		  <li><b>新功能分支（New Feature Branch）</b>  - 生命周期较短的驱动分支，每个分支通常只发布 1–2 个版本，在生产分支更新之间提供新的 NVIDIA RTX/Quadro 功能。旧称 Quadro New Feature（QNF），通常率先支持新操作系统、第三方硬件和游戏引擎。</li><br>
+		  <li><b>开源内核驱动（Open Source Driver）</b>  - 此驱动包包含开源内核模块，以及 NVIDIA 专有驱动包中的库和可执行文件。
+		  <br><b>支持的 GPU：</b>仅支持 Turing（图灵）及更新架构的显卡。
 		  <?php
             if(version_compare($unraid_version['version'], '7.0.0-rc.1.1', '<')) {
-              echo '<br><b><font color = "red">ATTENTION:</font></b> If you want to use the Open Source driver with GeForce and/or Workstation cards you have to create the file "<code>/boot/config/modprobe.d/nvidia.conf</code>" on your USB boot device with the contents, before you reboot your server:<br><code>options nvidia NVreg_OpenRmEnableUnsupportedGpus=1</code><br><p><em>For more information see <a href="https://us.download.nvidia.com/XFree86/Linux-x86_64/515.76/README/kernel_open.html">here</a>.</em></p>';
+              echo '<br><b><font color = "red">注意：</font></b>在此 Unraid 版本上为 GeForce 或工作站显卡使用开源驱动时，请在重启服务器前，在 USB 启动盘上创建文件 <code>/boot/config/modprobe.d/nvidia.conf</code>，并写入以下内容：<br><code>options nvidia NVreg_OpenRmEnableUnsupportedGpus=1</code><br><p><em>详见 <a href="https://us.download.nvidia.com/XFree86/Linux-x86_64/515.76/README/kernel_open.html">NVIDIA 官方说明</a>。</em></p>';
             }
 		  ?>
 		  </li></p></ul>

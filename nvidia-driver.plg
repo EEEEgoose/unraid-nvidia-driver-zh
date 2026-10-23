@@ -1,20 +1,25 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
   <!ENTITY name      "nvidia-driver">
-  <!ENTITY author    "unraid">
-  <!ENTITY version   "2026.06.07">
+  <!ENTITY author    "EEEEgoose">
+  <!ENTITY version   "2026.10.23">
   <!ENTITY launch    "Settings/nvidia-driver">
-  <!ENTITY gitURL    "https://github.com/&author;/unraid-&name;/raw/master">
+  <!ENTITY gitURL    "https://raw.githubusercontent.com/&author;/unraid-&name;-zh/master">
   <!ENTITY pluginURL "&gitURL;/&name;.plg">
-  <!ENTITY md5       "b78519b667ec93207a04a8ffbf38496c">
+  <!ENTITY md5       "734e89b64da0bea0c753497f2becaccf">
   <!ENTITY plugin    "/boot/config/plugins/&name;">
   <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
   <!ENTITY packages  "/boot/config/plugins/&name;/packages">
 ]>
 
-<PLUGIN  name="&name;" author="limetech" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.9.0-beta31" support="https://forums.unraid.net/topic/98978-plugin-nvidia-driver/">
+<PLUGIN  name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.9.0-beta31" support="https://github.com/EEEEgoose/unraid-nvidia-driver-zh/issues">
 
 <CHANGES>
+
+###2026.10.23
+- 将设置界面、GPU 兼容性提示、安装与下载提示、更新通知翻译为简体中文。
+- 插件安装和更新使用中文分支，NVIDIA 驱动包和版本信息继续使用上游来源。
+- 支持直接从仓库源码构建插件发布包。
 
 ###2026.06.07
 - Fix for missing link
@@ -213,10 +218,10 @@ rm -f $(ls /boot/config/plugins/&name;/&name;*.txz 2>/dev/null|grep -v '&version
 
 <FILE Name="&emhttp;/README.md">
 <INLINE>
-**Nvidia Driver**
+**Nvidia 驱动（简体中文版）**
 
-This plugin will install the Nvidia drivers to utilize your Nvidia graphics card in your Docker container(s).
-This plugin satisfies installation prerequisites of the GPU Statistics plugin from Community Apps. With both plugins installed you can display Nvidia GPU utilization on the Unraid Dashboard.
+此插件安装 NVIDIA 驱动，使 Docker 容器能够使用 NVIDIA 显卡。
+此插件也提供社区应用中 GPU Statistics 插件所需的驱动。两个插件一起安装后，可在 Unraid 仪表板查看 NVIDIA GPU 使用情况。
 </INLINE>
 </FILE>
 
@@ -229,8 +234,8 @@ if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KE
   wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5" "${DL_URL}/${LAT_PACKAGE}.md5"
   if [ "$(md5sum &packages;/${KERNEL_V%%-*}/${LAT_PACKAGE} | awk '{print $1}')" != "$(cat &packages;/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5 | awk '{print $1}')" ]; then
     echo
-    echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-    echo "--------------------------------CHECKSUM ERROR!---------------------------------"
+    echo "-----错误：操作失败------"
+    echo "--------------------------------校验失败！---------------------------------"
     removepkg &name;-&version;
     rm -rf &plugin; &emhttp;
     exit 1
@@ -241,10 +246,10 @@ if wget -q -nc --show-progress --progress=bar:force:noscroll -O "&packages;/${KE
   else
     sed -i '/driver_version=/c\driver_version=latest' "&plugin;/settings.cfg"
   fi
-  echo "----Successfully downloaded Nvidia ${OS}Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2), please wait!----"
+  echo "----已下载 Nvidia ${OS}驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)，请稍候！----"
 else
   echo
-  echo "--------------Can't download Nvidia ${OS}Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------------"
+  echo "--------------无法下载 Nvidia ${OS}驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------------"
   removepkg &name;-&version;
   rm -rf &plugin; &emhttp;
   exit 1
@@ -266,8 +271,8 @@ fi
 if [ -z "$LAT_PACKAGE" ]; then
   if [ -z "$CUR_V" ]; then
     echo
-    echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-    echo "---Can't get latest Nvidia ${OS}driver version and found no installed local driver---"
+    echo "-----错误：操作失败------"
+    echo "---无法获取最新的 Nvidia ${OS}驱动版本，且未检测到已安装的本地驱动---"
     removepkg &name;-&version;
     rm -rf &plugin; &emhttp;
     exit 1
@@ -284,9 +289,9 @@ if ! ls -1 &packages;/${KERNEL_V%%-*}/ | grep -q "${PACKAGE}" ; then
   RATE_LIMIT="$(wget -qO- -T 10 https://api.github.com/rate_limit | jq -r '.rate')"
   if [ "$(echo "${RATE_LIMIT}" | jq -r '.remaining')" == "0" ]; then
     RESET="$(date -d @"$(echo "${RATE_LIMIT}" | jq -r '.reset')" "+%Y-%m-%d %H:%M:%S")"
-    echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-    echo "There are no GitHub API calls left for your IP."
-    echo "The limit will be reset at: ${RESET}"
+    echo "-----错误：操作失败------"
+    echo "当前 IP 的 GitHub API 请求次数已用尽。"
+    echo "请求额度恢复时间： ${RESET}"
     echo
     removepkg &name;-&version;
     rm -rf &plugin; &emhttp;
@@ -295,20 +300,20 @@ if ! ls -1 &packages;/${KERNEL_V%%-*}/ | grep -q "${PACKAGE}" ; then
   get_version
   echo
   echo "+=============================================================================="
-  echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+  echo "| 注意：请等待操作完成"
   echo "|"
-  echo "| Don't close this window with the red 'X' in the top right corner until the 'DONE' button is displayed!"
+  echo "| 请等待“完成（DONE）”按钮出现，再关闭窗口；下载过程中请勿点击右上角的红色 X！"
   echo "|"
-  echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+  echo "| 注意：请等待操作完成"
   echo "+=============================================================================="
   echo
-  echo "-----------------Downloading Nvidia ${OS}Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2)------------------"
-  echo "----------This could take some time, please don't close this window!------------"
+  echo "-----------------正在下载 Nvidia ${OS}驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)------------------"
+  echo "----------下载可能需要一些时间，请勿关闭此窗口！------------"
   download
 else
   LAT_PACKAGE=$CUR_V
   echo
-  echo "--------------------Nvidia ${OS}driver v$(echo $LAT_PACKAGE | cut -d '-' -f2) found locally---------------------"
+  echo "--------------------已找到本地 Nvidia ${OS}驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)---------------------"
 fi
 }
 
@@ -357,7 +362,7 @@ KERNEL_V="$(uname -r)"
 SET_DRV_V="$(grep "driver_version" "&plugin;/settings.cfg" | cut -d '=' -f2)"
 if [ "${SET_DRV_V}" == "latest_nos" ]; then
   export PACKAGE="nvos"
-  export OS="Open Source "
+  export OS="开源内核"
 else
   export PACKAGE="nvidia"
 fi
@@ -387,7 +392,7 @@ rm -f $(ls &packages;/${KERNEL_V%%-*}/* 2>/dev/null | grep -v "$LAT_PACKAGE")
 #Install Nvidia Driver Package
 if ! modinfo nvidia -0 >/dev/null 2>&amp;1 ; then
   echo
-  echo "-----------------Installing Nvidia ${OS}Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2)-------------------"
+  echo "-----------------正在安装 Nvidia ${OS}驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)-------------------"
   install > /dev/null
   activate
   generate_cdi
@@ -405,16 +410,16 @@ fi
 
 #Display message to disable and enable Docker on first installation or display successful message
 if [ "$(grep "first_installation=" "&plugin;/settings.cfg" | cut -d '=' -f2)" == "true" ]; then
-  /usr/local/emhttp/plugins/dynamix/scripts/notify -e "Nvidia Driver" -d "Please make sure to disable and enable Docker if you installed the Nvidia ${OS}driver for the first time! Settings -> Docker -> Enable Docker 'No' -> Apply -> Enable Docker 'Yes' -> Apply" -i "alert" -l "/Settings/DockerSettings"
+  /usr/local/emhttp/plugins/dynamix/scripts/notify -e "Nvidia Driver" -s "Nvidia 驱动" -d "首次安装 Nvidia ${OS}驱动后，请先停用再启用 Docker：设置 → Docker → 启用 Docker 选择“否” → 应用 → 选择“是” → 应用。" -i "alert" -l "/Settings/DockerSettings"
   sed -i '/first_installation=true/c\first_installation=false' "&plugin;/settings.cfg"
   echo
-  echo "------------Installation of Nvidia ${OS}driver v$(echo $LAT_PACKAGE | cut -d '-' -f2) successful----------------"
+  echo "------------Nvidia ${OS}驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2) 安装成功----------------"
   echo
-  echo "Please make sure to disable and enable Docker if you installed the Nvidia ${OS}driver for the first time! Settings -> Docker -> Enable Docker 'No' -> Apply -> Enable Docker 'Yes' -> Apply"
+  echo "首次安装 Nvidia ${OS}驱动后，请先停用再启用 Docker：设置 → Docker → 启用 Docker 选择“否” → 应用 → 选择“是” → 应用。"
 else
   sed -i '/first_installation=true/c\first_installation=false' "&plugin;/settings.cfg"
   echo
-  echo "--------------Installation of Nvidia ${OS}driver v$(echo $LAT_PACKAGE | cut -d '-' -f2) successful--------------"
+  echo "--------------Nvidia ${OS}驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2) 安装成功--------------"
 fi
 
 #Check if Plugin Update Helper is downloaded and up-to-date
@@ -477,7 +482,7 @@ fi
 <INLINE>
 
 echo "----------------------------------------"
-echo "---Uninstalling Nvidia driver package---"
+echo "---正在卸载 Nvidia 驱动包---"
 echo "----------------------------------------"
 # Remove plugin related files
 removepkg &name;-&version;
@@ -486,7 +491,7 @@ rm -rf /usr/local/emhttp/plugins/&name;
 rm -rf &plugin;
 echo
 echo "--------------------------------------------------------------------------------"
-echo "-------------Nvidia Driver uninstalled, please reboot your server!--------------"
+echo "-------------Nvidia 驱动已卸载，请重启服务器！--------------"
 echo "--------------------------------------------------------------------------------"
 echo
 

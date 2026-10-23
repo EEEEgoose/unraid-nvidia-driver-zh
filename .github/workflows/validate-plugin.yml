@@ -1,0 +1,29 @@
+name: Validate plugin
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check PHP and Shell syntax
+        run: |
+          for file in source/usr/local/emhttp/plugins/nvidia-driver/include/*.php source/usr/local/emhttp/plugins/nvidia-driver/*.page; do
+            php -d short_open_tag=On -l "$file"
+          done
+          for file in source/*.sh source/usr/local/emhttp/plugins/nvidia-driver/include/*.sh; do
+            bash -n "$file"
+          done
+      - name: Check JavaScript syntax
+        run: |
+          python3 - <<'PY' | node --check
+          from pathlib import Path
+          import re
+          page = Path('source/usr/local/emhttp/plugins/nvidia-driver/nvidia-driver.page').read_text()
+          print('\n'.join(re.findall(r'<script>([\s\S]*?)</script>', page)))
+          PY
+      - name: Build plugin and parse manifest
+        run: |
+          bash source/makepkg-unraid.sh
+          python3 -c "import xml.etree.ElementTree as ET; ET.parse('nvidia-driver.plg')"
