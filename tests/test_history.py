@@ -5,9 +5,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import tempfile
 import threading
+import time
+import urllib.error
+import urllib.request
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +29,7 @@ class HistoryTest(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         self.kernel = KERNEL
-        self.fail = None
+        self.failed_path = None
         self.metadata_failure = False
         self.request_count = 0
         self.payloads = {}
@@ -36,7 +40,7 @@ class HistoryTest(unittest.TestCase):
             def do_GET(self):
                 owner.request_count += 1
                 path = self.path.split('?')[0]
-                if owner.metadata_failure or owner.fail == path:
+                if owner.metadata_failure or owner.failed_path == path:
                     self.send_response(500)
                     self.end_headers()
                     self.wfile.write(b'{"message":"test download failure"}')
@@ -103,8 +107,11 @@ class HistoryTest(unittest.TestCase):
             self.assets.append({'name': name + suffix, 'size': len(self.payloads['/download/' + name + suffix]), 'browser_download_url': self.url + '/download/' + name + suffix})
         return name
 
+    def environment(self):
+        return dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ['PATH'], TEST_KERNEL=self.kernel, TEST_CRON_LOG=str(self.root / 'cron.log'))
+
     def run_php(self, *args, success=True):
-        env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ['PATH'], TEST_KERNEL=self.kernel, TEST_CRON_LOG=str(self.root / 'cron.log'))
+        env = self.environment()
         result = subprocess.run(['php', str(self.php), *args], env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0 if success else 1, result.stdout + result.stderr)
         return result
@@ -136,13 +143,13 @@ class HistoryTest(unittest.TestCase):
         target = f'nvidia-580.19-{KERNEL}-1.txz'
         self.put_local(current)
         before = self.settings.read_bytes()
-        self.fail = '/download/' + target
+        self.failed_path = '/download/' + target
         self.run_php('download', target, success=False)
         self.assertEqual(self.settings.read_bytes(), before)
         self.assertTrue(self.package(current).is_file())
         self.assertFalse(self.package(target).is_file())
         self.assertFalse(list(self.boot.rglob('*.part')))
-        self.fail = None
+        self.failed_path = None
         self.payloads['/download/' + target + '.md5'] = b'0' * 32
         self.run_php('download', target, success=False)
         self.assertEqual(self.settings.read_bytes(), before)
@@ -204,6 +211,43 @@ class HistoryTest(unittest.TestCase):
         count = self.request_count
         self.run_php('download', target)
         self.assertEqual(self.request_count, count)  # cached catalog and verified package
+
+    def test_http_catalog_status_and_refresh_failure(self):
+        target = f'nvos-580.19-{KERNEL}-1.txz'
+        self.run_php('download', target)
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        process = subprocess.Popen(['php', '-S', f'127.0.0.1:{port}', '-t', str(self.root)], env=self.environment(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        url = f'http://127.0.0.1:{port}/driver-history.php'
+        try:
+            for _ in range(50):
+                try:
+                    with urllib.request.urlopen(url, timeout=2) as response:
+                        data = json.load(response)
+                    break
+                except urllib.error.URLError:
+                    time.sleep(0.05)
+            else:
+                self.fail('PHP HTTP endpoint did not start')
+            self.assertTrue(data['ok'])
+            self.assertEqual(data['kernel'], KERNEL)
+            selected = next(row for row in data['rows'] if row['name'] == target)
+            self.assertTrue(selected['selected'])
+            self.assertTrue(selected['cached'])
+            self.assertFalse(selected['installed'])
+            self.metadata_failure = True
+            with urllib.request.urlopen(url + '?refresh=1', timeout=2) as response:
+                stale = json.load(response)
+            self.assertEqual(len(stale['rows']), 4)
+            self.assertIn('上次获取', stale['notice'])
+            (self.root / ('release-' + KERNEL + '.json')).unlink()
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                urllib.request.urlopen(url, timeout=2)
+            self.assertEqual(caught.exception.code, 502)
+        finally:
+            process.terminate()
+            process.wait(timeout=5)
 
     def test_existing_numeric_selection_boots_exact_local_version(self):
         name = f'nvidia-580.19-{KERNEL}-1.txz'
