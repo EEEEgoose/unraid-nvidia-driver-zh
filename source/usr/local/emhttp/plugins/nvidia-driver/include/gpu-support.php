@@ -181,6 +181,17 @@ foreach ($branch_buckets as $branch_head) {
 }
 
 $candidate_versions = array_values(array_unique($candidate_versions));
+// Historical versions are checked only when selected, rather than fetching every version.
+if (isset($_GET['driver_version'])) {
+  $requested_version = (string)$_GET['driver_version'];
+  if (!preg_match('/^\d{3}\.\d+(?:\.\d+)?$/D', $requested_version)) {
+    http_response_code(400);
+    echo json_encode(array('ok' => false, 'error' => '无效的驱动版本。'));
+    exit;
+  }
+  $candidate_versions = array($requested_version);
+}
+
 $open_recommended = nvidia_extract_version($latest_nos_v);
 $production_recommended = nvidia_extract_version($latest_prb_v);
 

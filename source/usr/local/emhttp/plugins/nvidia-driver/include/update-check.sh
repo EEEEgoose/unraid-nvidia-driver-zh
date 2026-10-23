@@ -22,6 +22,7 @@ if wget -q -nc --show-progress --progress=bar:force:noscroll -O "/boot/config/pl
     exit 1
   fi
   echo
+  php /usr/local/emhttp/plugins/nvidia-driver/include/driver-history.php stage "$LAT_PACKAGE" || exit 1
   echo "-----------已下载 Nvidia 驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------"
   /usr/local/emhttp/plugins/dynamix/scripts/notify -e "Nvidia Driver" -s "Nvidia 驱动" -d "已发现并下载 Nvidia 新驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)！请重启服务器以安装新版本。" -l "/Main"
   crontab -l | grep -v '/usr/local/emhttp/plugins/nvidia-driver/include/update-check.sh'  | crontab -
@@ -77,6 +78,7 @@ elif [ "${SET_DRV_V}" == "latest_nos" ]; then
   fi
 fi
 
-#Check for old packages that are not suitable for this Kernel and not suitable for the current Nvidia driver version
-rm -rf $(ls -d /boot/config/plugins/nvidia-driver/packages/* 2>/dev/null | grep -v "${KERNEL_V%%-*}")
-rm -f $(ls /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/* 2>/dev/null | grep -v "$LAT_PACKAGE")
+# Keep both the running driver and the newly staged package.
+if [ -n "$LAT_PACKAGE" ]; then
+  php /usr/local/emhttp/plugins/nvidia-driver/include/driver-history.php prune "$LAT_PACKAGE"
+fi
