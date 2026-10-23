@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
   <!ENTITY name      "nvidia-driver">
   <!ENTITY author    "EEEEgoose">
-  <!ENTITY version   "2026.10.23b">
+  <!ENTITY version   "2026.10.23c">
   <!ENTITY launch    "Settings/nvidia-driver">
   <!ENTITY gitURL    "https://raw.githubusercontent.com/&author;/unraid-&name;-zh/master">
   <!ENTITY pluginURL "&gitURL;/&name;.plg">
-  <!ENTITY md5       "f6b940a15169914a6e1bcb71433b8890">
+  <!ENTITY md5       "898de71aa68bee96104ab3f52df6d13d">
   <!ENTITY plugin    "/boot/config/plugins/&name;">
   <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
   <!ENTITY packages  "/boot/config/plugins/&name;/packages">
@@ -15,6 +15,10 @@
 <PLUGIN  name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.9.0-beta31" support="https://github.com/EEEEgoose/unraid-nvidia-driver-zh/issues">
 
 <CHANGES>
+
+###2026.10.23c
+- 修复降级后混装两套驱动：启动目录仅保留目标包，备份移至不被启动扫描的子目录。
+- 从已加载的内核模块读取当前版本，避免 NVML 异常时误判版本和清理缓存。
 
 ###2026.10.23b
 - 修复历史驱动下载弹窗空白，显示列表加载提示、下载进度及错误信息。

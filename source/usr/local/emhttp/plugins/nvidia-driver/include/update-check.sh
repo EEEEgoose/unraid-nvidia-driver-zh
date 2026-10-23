@@ -10,15 +10,17 @@ DL_URL="https://github.com/unraid/unraid-nvidia-driver/releases/download/${KERNE
 INSTALLED_V="$(nvidia-smi | grep NVIDIA-SMI | cut -d ' ' -f3)"
 
 download() {
-if wget -q -nc --show-progress --progress=bar:force:noscroll -O "/boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}" "${DL_URL}/${LAT_PACKAGE}" ; then
-  wget -q -nc --show-progress --progress=bar:force:noscroll -O "/boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5" "${DL_URL}/${LAT_PACKAGE}.md5"
-  if [ "$(md5sum /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE} | awk '{print $1}')" != "$(cat /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5 | awk '{print $1}')" ]; then
+CACHE_DIR="/boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/cache"
+mkdir -p "$CACHE_DIR"
+if wget -q -nc --show-progress --progress=bar:force:noscroll -O "${CACHE_DIR}/${LAT_PACKAGE}" "${DL_URL}/${LAT_PACKAGE}" ; then
+  wget -q -nc --show-progress --progress=bar:force:noscroll -O "${CACHE_DIR}/${LAT_PACKAGE}.md5" "${DL_URL}/${LAT_PACKAGE}.md5"
+  if [ "$(md5sum ${CACHE_DIR}/${LAT_PACKAGE} | awk '{print $1}')" != "$(cat ${CACHE_DIR}/${LAT_PACKAGE}.md5 | awk '{print $1}')" ]; then
     echo
     echo "-----错误：操作失败------"
     echo "--------------------------------校验失败！---------------------------------"
     /usr/local/emhttp/plugins/dynamix/scripts/notify -e "Nvidia Driver" -s "Nvidia 驱动" -d "发现 Nvidia 新驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)，但校验失败！请尝试手动下载并安装驱动。" -i "alert" -l "/Settings/nvidia-driver"
     crontab -l | grep -v '/usr/local/emhttp/plugins/nvidia-driver/include/update-check.sh'  | crontab -
-    rm -rf /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}*
+    rm -rf ${CACHE_DIR}/${LAT_PACKAGE}*
     exit 1
   fi
   echo
