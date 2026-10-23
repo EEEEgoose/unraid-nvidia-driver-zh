@@ -218,6 +218,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
       nvidia_history_stage($row, $settings['driver_version']);
     } elseif ($argv[1] === 'download') {
       $selector = $argv[2];
+      echo "正在读取当前内核的驱动列表，请稍候……\n";
       $list = nvidia_history_list($kernel);
       $row = nvidia_history_choose($list['rows'], $selector);
       nvidia_history_download($row);

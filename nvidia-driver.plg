@@ -2,11 +2,11 @@
 <!DOCTYPE PLUGIN [
   <!ENTITY name      "nvidia-driver">
   <!ENTITY author    "EEEEgoose">
-  <!ENTITY version   "2026.10.23a">
+  <!ENTITY version   "2026.10.23b">
   <!ENTITY launch    "Settings/nvidia-driver">
   <!ENTITY gitURL    "https://raw.githubusercontent.com/&author;/unraid-&name;-zh/master">
   <!ENTITY pluginURL "&gitURL;/&name;.plg">
-  <!ENTITY md5       "d726d4bbcde15d8f1c2f24f006143392">
+  <!ENTITY md5       "f6b940a15169914a6e1bcb71433b8890">
   <!ENTITY plugin    "/boot/config/plugins/&name;">
   <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
   <!ENTITY packages  "/boot/config/plugins/&name;/packages">
@@ -15,6 +15,9 @@
 <PLUGIN  name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.9.0-beta31" support="https://github.com/EEEEgoose/unraid-nvidia-driver-zh/issues">
 
 <CHANGES>
+
+###2026.10.23b
+- 修复历史驱动下载弹窗空白，显示列表加载提示、下载进度及错误信息。
 
 ###2026.10.23a
 - 支持浏览、搜索并固定安装当前内核对应的历史驱动，包括开源内核驱动。
