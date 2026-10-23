@@ -23,6 +23,8 @@ jobs:
           page = Path('source/usr/local/emhttp/plugins/nvidia-driver/nvidia-driver.page').read_text()
           print('\n'.join(re.findall(r'<script>([\s\S]*?)</script>', page)))
           PY
+      - name: Test historical driver selection and downloads
+        run: python3 tests/test_history.py
       - name: Build plugin and parse manifest
         run: |
           bash source/makepkg-unraid.sh

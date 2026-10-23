@@ -10,17 +10,17 @@ if [ -f /tmp/nvidia_driver ]; then
   DIFF=$(expr $CURENTTIME - $FILETIME)
   if [ $DIFF -gt $CHK_TIMEOUT ]; then
     DRIVERS="$(wget -qO- https://api.github.com/repos/unraid/unraid-nvidia-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep -E -v '\.md5$' | sort -V)"
-    echo -n "$(grep ${PACKAGE} <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V | tail -10)" > /tmp/nvidia_driver
+    echo -n "$(grep ${PACKAGE} <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V)" > /tmp/nvidia_driver
     echo -n "$(grep nvos <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V | tail -1)" > /tmp/nvos_driver
-    echo -n "$(wget -qO- https://api.github.com/repos/unraid/unraid-nvidia-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep "${PACKAGE}" | grep -E -v '\.md5$' | awk -F "-" '{print $2}' | sort -V | tail -10)" > /tmp/nvidia_driver
+    echo -n "$(wget -qO- https://api.github.com/repos/unraid/unraid-nvidia-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep "${PACKAGE}" | grep -E -v '\.md5$' | awk -F "-" '{print $2}' | sort -V)" > /tmp/nvidia_driver
     if [ ! -s /tmp/nvidia_driver ]; then
       echo -n "$(modinfo nvidia | grep "version:" | awk '{print $2}' | head -1)" > /tmp/nvidia_driver
     fi
   fi
 else
   DRIVERS="$(wget -qO- https://api.github.com/repos/unraid/unraid-nvidia-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep -E -v '\.md5$' | sort -V)"
-  echo -n "$(grep ${PACKAGE} <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V | tail -10)" > /tmp/nvidia_driver
-  echo -n "$(grep nvos <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V | tail -10)" > /tmp/nvos_driver
+  echo -n "$(grep ${PACKAGE} <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V)" > /tmp/nvidia_driver
+  echo -n "$(grep nvos <<< "$DRIVERS" | awk -F "-" '{print $2}' | sort -V)" > /tmp/nvos_driver
   if [ ! -s /tmp/nvidia_driver ]; then
     echo -n "$(modinfo nvidia | grep "version:" | awk '{print $2}' | head -1)" > /tmp/nvidia_driver
   fi
@@ -47,12 +47,7 @@ fi
 }
 
 function update_version(){
-sed -i "/driver_version=/c\driver_version=${1}" "/boot/config/plugins/nvidia-driver/settings.cfg"
-if [[ "${1}" != "latest" && "${1}" != "latest_prb" && "${1}" != "latest_nfb" ]]; then
-  sed -i "/update_check=/c\update_check=false" "/boot/config/plugins/nvidia-driver/settings.cfg"
-  echo -n "$(crontab -l | grep -v '/usr/local/emhttp/plugins/nvidia-driver/include/update-check.sh &>/dev/null 2>&1'  | crontab -)"
-fi
-/usr/local/emhttp/plugins/nvidia-driver/include/download.sh
+/usr/local/emhttp/plugins/nvidia-driver/include/download.sh "$1"
 }
 
 function get_latest_version(){
