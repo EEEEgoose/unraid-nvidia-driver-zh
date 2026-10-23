@@ -4,9 +4,9 @@
 RATE_LIMIT="$(wget -qO- -T 10 https://api.github.com/rate_limit | jq -r '.rate')"
 if [ "$(echo "${RATE_LIMIT}" | jq -r '.remaining')" == "0" ]; then
   RESET="$(date -d @"$(echo "${RATE_LIMIT}" | jq -r '.reset')" "+%Y-%m-%d %H:%M:%S")"
-  echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-  echo "There are no GitHub API calls left for your IP."
-  echo "The limit will be reset at: <b>${RESET}</b>"
+  echo "-----错误：操作失败------"
+  echo "当前 IP 的 GitHub API 请求次数已用尽。"
+  echo "请求额度恢复时间： <b>${RESET}</b>"
   exit 1
 fi
 
@@ -15,7 +15,7 @@ export KERNEL_V="$(uname -r)"
 export SET_DRV_V="$(grep "driver_version" "/boot/config/plugins/nvidia-driver/settings.cfg" | cut -d '=' -f2)"
 if [ "${SET_DRV_V}" == "latest_nos" ]; then
   export PACKAGE="nvos"
-  export OS="Open Source "
+  export OS="开源内核"
   LAT_NOS_AVAIL="$(wget -qO- https://api.github.com/repos/unraid/unraid-nvidia-driver/releases/tags/${KERNEL_V} | jq -r '.assets[].name' | grep -E -v '\.md5$' | grep "${PACKAGE}" | awk -F "-" '{print $2}' | sort -V | tail -1)"
 else
   export PACKAGE="nvidia"
@@ -31,16 +31,16 @@ if wget -q -nc --show-progress --progress=bar:force:noscroll -O "/boot/config/pl
   wget -q -nc --show-progress --progress=bar:force:noscroll -O "/boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5" "${DL_URL}/${LAT_PACKAGE}.md5"
   if [ "$(md5sum /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE} | awk '{print $1}')" != "$(cat /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5 | awk '{print $1}')" ]; then
     echo
-    echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-    echo "--------------------------------CHECKSUM ERROR!---------------------------------"
+    echo "-----错误：操作失败------"
+    echo "--------------------------------校验失败！---------------------------------"
     rm -rf /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}*
     exit 1
   fi
   echo
-  echo "-----------Successfully downloaded Nvidia Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------"
+  echo "-----------已下载 Nvidia 驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------"
 else
   echo
-  echo "---------------Can't download Nvidia Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2)----------------"
+  echo "---------------无法下载 Nvidia 驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)----------------"
   exit 1
 fi
 }
@@ -50,40 +50,40 @@ check() {
 if ! ls -1 /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/ | grep -q "${PACKAGE}-$(echo $LAT_PACKAGE | cut -d '-' -f2)" ; then
   echo
   echo "+=============================================================================="
-  echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+  echo "| 注意：请等待操作完成"
   echo "|"
-  echo "| Don't close this window with the red 'X' in the top right corner until the 'DONE' button is displayed!"
+  echo "| 请等待“完成（DONE）”按钮出现，再关闭窗口；下载过程中请勿点击右上角的红色 X！"
   echo "|"
-  echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+  echo "| 注意：请等待操作完成"
   echo "+=============================================================================="
   echo
-  echo "----------------Downloading Nvidia ${OS}Driver Package v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------------"
-  echo "---------This could take some time, please don't close this window!------------"
+  echo "----------------正在下载 Nvidia ${OS}驱动包 v$(echo $LAT_PACKAGE | cut -d '-' -f2)-----------------"
+  echo "---------下载可能需要一些时间，请勿关闭此窗口！------------"
   download
 else
   echo
-  echo "--------Nothing to do, Nvidia ${OS}Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2) already downloaded!---------"
+  echo "--------Nvidia ${OS}驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2) 已下载，无需重复下载！---------"
   echo
-  echo "------------------------------Verifying CHECKSUM!------------------------------"
+  echo "------------------------------正在校验驱动包……------------------------------"
   if [ "$(md5sum /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE} | awk '{print $1}')" != "$(cat /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}.md5 | awk '{print $1}')" ]; then
     rm -rf /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/${LAT_PACKAGE}*
     echo
-    echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR-----"
-    echo "--------------------------------CHECKSUM ERROR!--------------------------------"
+    echo "-----错误：操作失败-----"
+    echo "--------------------------------校验失败！--------------------------------"
     echo
-    echo "---------------Trying to redownload the Nvidia ${OS}Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2)-------------"
+    echo "---------------正在重新下载 Nvidia ${OS}驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)-------------"
     echo
     echo "+=============================================================================="
-    echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+    echo "| 注意：请等待操作完成"
     echo "|"
-    echo "| Don't close this window with the red 'X' in the top right corner until the 'DONE' button is displayed!"
+    echo "| 请等待“完成（DONE）”按钮出现，再关闭窗口；下载过程中请勿点击右上角的红色 X！"
     echo "|"
-    echo "| WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING - WARNING"
+    echo "| 注意：请等待操作完成"
     echo "+=============================================================================="
     download
   else
     echo
-    echo "----------------------------------CHECKSUM OK!---------------------------------"
+    echo "----------------------------------校验通过！---------------------------------"
     exit 0
   fi
 fi
@@ -98,10 +98,10 @@ if [ "${SET_DRV_V}" == "latest" ]; then
   if [ -z "$LAT_PACKAGE" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "---Can't get latest Nvidia driver version and found no installed local driver---"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "---无法获取最新的 Nvidia 驱动版本，且未检测到已安装的本地驱动---"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       LAT_PACKAGE=$PACKAGE-$CUR_V-$KERNEL_V-1.txz
@@ -112,10 +112,10 @@ elif [ "${SET_DRV_V}" == "latest_prb" ]; then
   if [ -z "$LAT_PRB_AVAIL" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "----Can't get Production Branch version and found no installed local driver-----"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "----无法获取生产分支版本，且未检测到已安装的本地驱动-----"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       LAT_PACKAGE=$PACKAGE-$CUR_V-$KERNEL_V-1.txz
@@ -123,10 +123,10 @@ elif [ "${SET_DRV_V}" == "latest_prb" ]; then
   elif [ -z "$DRIVER_AVAIL" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "------Can't get Nvidia driver versions and found no installed local driver------"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "------无法获取 Nvidia 驱动版本，且未检测到已安装的本地驱动------"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       LAT_PACKAGE=$PACKAGE-$CUR_V-$KERNEL_V-1.txz
@@ -136,14 +136,14 @@ elif [ "${SET_DRV_V}" == "latest_prb" ]; then
     if [ -z "${LAT_PRB_V}" ]; then
       if [ -z "${CUR_V}" ]; then
         echo
-        echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-        echo "---Can't get latest Nvidia driver version and found no installed local driver---"
-        echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-        echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+        echo "-----错误：操作失败------"
+        echo "---无法获取最新的 Nvidia 驱动版本，且未检测到已安装的本地驱动---"
+        echo "-----请等待一小时后重试；如果仍然失败，-----"
+        echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
         exit 1
       else
         LAT_PACKAGE="$(echo "$DRIVER_AVAIL" | tail -1)"
-        echo "---Can't find latest Prodution Branch Nvidia Driver for your Kernel v${KERNEL_V%%-*} falling back to latest Nvidia Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2)---"
+        echo "---内核 v${KERNEL_V%%-*} 暂无对应的最新生产分支驱动，将改用最新版 Nvidia 驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)---"
         sed -i '/driver_version=/c\driver_version=latest' "/boot/config/plugins/nvidia-driver/settings.cfg"
       fi
     else
@@ -155,10 +155,10 @@ elif [ "${SET_DRV_V}" == "latest_nfb" ]; then
   if [ -z "$LAT_NFB_AVAIL" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "----Can't get New Feature Branch version and found no installed local driver----"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "----无法获取新功能分支版本，且未检测到已安装的本地驱动----"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       LAT_PACKAGE=$PACKAGE-$CUR_V-$KERNEL_V-1.txz
@@ -166,10 +166,10 @@ elif [ "${SET_DRV_V}" == "latest_nfb" ]; then
   elif [ -z "$DRIVER_AVAIL" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "------Can't get Nvidia driver versions and found no installed local driver------"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "------无法获取 Nvidia 驱动版本，且未检测到已安装的本地驱动------"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       LAT_PACKAGE=$PACKAGE-$CUR_V-$KERNEL_V-1.txz
@@ -179,14 +179,14 @@ elif [ "${SET_DRV_V}" == "latest_nfb" ]; then
     if [ -z "${LAT_NFB_V}" ]; then
       if [ -z "${CUR_V}" ]; then
         echo
-        echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-        echo "------Can't get Nvidia driver versions and found no installed local driver------"
-        echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-        echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+        echo "-----错误：操作失败------"
+        echo "------无法获取 Nvidia 驱动版本，且未检测到已安装的本地驱动------"
+        echo "-----请等待一小时后重试；如果仍然失败，-----"
+        echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
         exit 1
       else
         LAT_PACKAGE="$(echo "$DRIVER_AVAIL" | tail -1)"
-        echo "---Can't find latest Production Branch Nvidia Driver for your Kernel v${KERNEL_V%%-*} falling back to latest Nvidia Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2)---"
+        echo "---内核 v${KERNEL_V%%-*} 暂无对应的最新新功能分支驱动，将改用最新版 Nvidia 驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)---"
         sed -i '/driver_version=/c\driver_version=latest' "/boot/config/plugins/nvidia-driver/settings.cfg"
       fi
     else
@@ -197,10 +197,10 @@ elif [ "${SET_DRV_V}" == "latest_nos" ]; then
   if [ -z "$LAT_NOS_AVAIL" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "----Can't get Nvidia Open Source version and found no installed local driver----"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "----无法获取开源内核驱动版本，且未检测到已安装的本地驱动----"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       export PACKAGE="nvidia"
@@ -213,10 +213,10 @@ else
   if [ -z "$DRIVER_AVAIL" ]; then
     if [ -z "${CUR_V}" ]; then
       echo
-      echo "-----ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR - ERROR------"
-      echo "---Can't get latest Nvidia driver version and found no installed local driver---"
-      echo "-----Please wait for an hour and try it again, if it then also fails please-----"
-      echo "------go to the Support Thread on the Unraid forums and make a post there!------"
+      echo "-----错误：操作失败------"
+      echo "---无法获取最新的 Nvidia 驱动版本，且未检测到已安装的本地驱动---"
+      echo "-----请等待一小时后重试；如果仍然失败，-----"
+      echo "------请在中文版仓库的 Issues 中反馈，并附上错误信息。------"
       exit 1
     else
       LAT_PACKAGE=$PACKAGE-$CUR_V-$KERNEL_V-1.txz
@@ -226,7 +226,7 @@ else
     if [ -z "${LAT_PACKAGE}" ]; then
       export LAT_PACKAGE="$(echo "$DRIVER_AVAIL" | tail -1)"
       echo
-      echo "---Can't find Nvidia Driver v${SET_DRV_V} for your Kernel v${KERNEL_V%%-*} falling back to latest Nvidia Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2)---"
+      echo "---内核 v${KERNEL_V%%-*} 暂无对应的 Nvidia 驱动 v${SET_DRV_V}，将改用最新版 v$(echo $LAT_PACKAGE | cut -d '-' -f2)---"
       sed -i '/driver_version=/c\driver_version=latest' "/boot/config/plugins/nvidia-driver/settings.cfg"
     fi
   fi
@@ -241,5 +241,5 @@ rm -f $(ls /boot/config/plugins/nvidia-driver/packages/${KERNEL_V%%-*}/* 2>/dev/
 
 #Display message to reboot server both in Plugin and WebUI
 echo
-echo "----To install the new Nvidia Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2) please reboot your Server!----"
-/usr/local/emhttp/plugins/dynamix/scripts/notify -e "Nvidia Driver" -d "To install the new Nvidia Driver v$(echo $LAT_PACKAGE | cut -d '-' -f2) please reboot your Server!" -i "alert" -l "/Main"
+echo "----请重启服务器以安装 Nvidia 新驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)！----"
+/usr/local/emhttp/plugins/dynamix/scripts/notify -e "Nvidia Driver" -s "Nvidia 驱动" -d "请重启服务器以安装 Nvidia 新驱动 v$(echo $LAT_PACKAGE | cut -d '-' -f2)！" -i "alert" -l "/Main"
