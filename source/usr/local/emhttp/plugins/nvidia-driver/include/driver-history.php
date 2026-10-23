@@ -88,6 +88,32 @@ function nvidia_history_directory($kernel) {
   return '/boot/config/plugins/nvidia-driver/packages/' . explode('-', $kernel)[0];
 }
 
+function nvidia_history_path($kernel, $name) {
+  $directory = nvidia_history_directory($kernel);
+  return is_file($directory . '/cache/' . $name) ? $directory . '/cache/' . $name : $directory . '/' . $name;
+}
+
+// rc.modules installs every matching archive at maxdepth 1 before this plugin runs.
+// Keep only the selected archive there; backups belong in the unscanned subdirectory.
+function nvidia_history_activate($row) {
+  $directory = nvidia_history_directory($row['kernel']);
+  $source = nvidia_history_path($row['kernel'], $row['name']);
+  if (!is_dir($directory . '/cache')) mkdir($directory . '/cache', 0755, true);
+  foreach (glob($directory . '/*.txz') as $path) {
+    if (basename($path) === $row['name'] || nvidia_history_parse_name(basename($path), $row['kernel']) === null) continue;
+    foreach (array('', '.md5') as $suffix) {
+      if (is_file($path . $suffix) && !rename($path . $suffix, $directory . '/cache/' . basename($path) . $suffix)) {
+        throw new RuntimeException('无法移动旧驱动缓存，请检查启动盘。');
+      }
+    }
+  }
+  if ($source !== $directory . '/' . $row['name']) {
+    foreach (array('', '.md5') as $suffix) {
+      if (!rename($source . $suffix, $directory . '/' . $row['name'] . $suffix)) throw new RuntimeException('无法切换启动驱动包。');
+    }
+  }
+}
+
 function nvidia_history_verified($path) {
   if (!is_file($path) || !is_file($path . '.md5')) return false;
   $expected = preg_split('/\s+/', trim(file_get_contents($path . '.md5')))[0];
@@ -115,10 +141,10 @@ function nvidia_history_choose($rows, $selector, $type = 'nvidia') {
 }
 
 function nvidia_history_download($row) {
-  $directory = nvidia_history_directory($row['kernel']);
+  $directory = nvidia_history_directory($row['kernel']) . '/cache';
   if (!is_dir($directory)) mkdir($directory, 0755, true);
   $path = $directory . '/' . $row['name'];
-  if (nvidia_history_verified($path)) {
+  if (nvidia_history_verified(nvidia_history_path($row['kernel'], $row['name']))) {
     fwrite(STDERR, "已找到并校验本地驱动包：" . $row['name'] . "\n");
     return;
   }
@@ -141,6 +167,7 @@ function nvidia_history_download($row) {
 }
 
 function nvidia_history_stage($row, $selector) {
+  nvidia_history_activate($row);
   $values = array(
     'driver_version' => $selector,
     'driver_type' => $row['type'],
@@ -152,16 +179,15 @@ function nvidia_history_stage($row, $selector) {
 }
 
 function nvidia_history_installed() {
-  $version = trim((string)shell_exec('nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null'));
-  return array(
-    'version' => explode("\n", $version)[0],
-    'type' => trim((string)shell_exec('modinfo -F license nvidia 2>/dev/null')) === 'NVIDIA' ? 'nvidia' : 'nvos'
-  );
+  // NVML can fail during a mixed installation; the loaded module remains authoritative.
+  $version = is_file('/sys/module/nvidia/version') ? trim(file_get_contents('/sys/module/nvidia/version')) : '';
+  $description = is_file('/proc/driver/nvidia/version') ? file_get_contents('/proc/driver/nvidia/version') : '';
+  return array('version' => $version, 'type' => strpos($description, 'Open Kernel Module') !== false ? 'nvos' : 'nvidia');
 }
 
 function nvidia_history_prune($kernel, $keep_name) {
   $installed = nvidia_history_installed();
-  foreach (glob(nvidia_history_directory($kernel) . '/*.txz') as $path) {
+  foreach (array_merge(glob(nvidia_history_directory($kernel) . '/*.txz'), glob(nvidia_history_directory($kernel) . '/cache/*.txz')) as $path) {
     $row = nvidia_history_parse_name(basename($path), $kernel);
     if ($row === null || $row['name'] === $keep_name || ($row['version'] === $installed['version'] && $row['type'] === $installed['type'])) continue;
     unlink($path);
@@ -174,16 +200,16 @@ function nvidia_history_boot($settings, $kernel) {
   $fixed = !in_array($selector, array('latest', 'latest_prb', 'latest_nfb', 'latest_nos'), true);
   $type = $fixed ? ($settings['driver_type'] ?? 'nvidia') : ($selector === 'latest_nos' ? 'nvos' : 'nvidia');
   $saved = nvidia_history_parse_name($settings['driver_package'] ?? '', $kernel);
-  if ($saved !== null && $saved['type'] === $type && (!$fixed || $saved['version'] === $selector) && nvidia_history_verified(nvidia_history_directory($kernel) . '/' . $saved['name'])) return $saved;
+  if ($saved !== null && $saved['type'] === $type && (!$fixed || $saved['version'] === $selector) && nvidia_history_verified(nvidia_history_path($kernel, $saved['name']))) return $saved;
   // Existing installations may have a verified local package but no saved filename yet.
   if (empty($settings['driver_package'])) {
     $local = array();
-    foreach (glob(nvidia_history_directory($kernel) . '/*.txz') as $path) {
+    foreach (array_merge(glob(nvidia_history_directory($kernel) . '/*.txz'), glob(nvidia_history_directory($kernel) . '/cache/*.txz')) as $path) {
       $row = nvidia_history_parse_name(basename($path), $kernel);
       if ($row !== null && $row['type'] === $type && (!$fixed || $row['version'] === $selector)) $local[] = $row;
     }
     usort($local, 'nvidia_history_sort');
-    foreach ($local as $row) if (nvidia_history_verified(nvidia_history_directory($kernel) . '/' . $row['name'])) return $row;
+    foreach ($local as $row) if (nvidia_history_verified(nvidia_history_path($kernel, $row['name']))) return $row;
   }
   $list = nvidia_history_list($kernel);
   $row = nvidia_history_choose($list['rows'], $selector, $type);
@@ -202,7 +228,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
       foreach ($result['rows'] as &$row) {
         $row['installed'] = $row['version'] === $installed['version'] && $row['type'] === $installed['type'];
         $row['selected'] = $row['name'] === ($settings['driver_package'] ?? '');
-        $row['cached'] = is_file(nvidia_history_directory($kernel) . '/' . $row['name']);
+        $row['cached'] = is_file(nvidia_history_path($kernel, $row['name']));
       }
       unset($row);
       echo json_encode(array_merge($result, array('ok' => true, 'kernel' => $kernel, 'selection' => $settings['driver_version'])), JSON_UNESCAPED_UNICODE);
@@ -214,7 +240,7 @@ if (realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
       nvidia_history_prune($kernel, $argv[2]);
     } elseif ($argv[1] === 'stage') {
       $row = nvidia_history_parse_name($argv[2], $kernel);
-      if ($row === null || !nvidia_history_verified(nvidia_history_directory($kernel) . '/' . $row['name'])) throw new RuntimeException('待安装驱动包不存在或校验失败。');
+      if ($row === null || !nvidia_history_verified(nvidia_history_path($kernel, $row['name']))) throw new RuntimeException('待安装驱动包不存在或校验失败。');
       nvidia_history_stage($row, $settings['driver_version']);
     } elseif ($argv[1] === 'download') {
       $selector = $argv[2];

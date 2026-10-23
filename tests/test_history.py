@@ -70,6 +70,12 @@ class HistoryTest(unittest.TestCase):
         self.url = 'http://127.0.0.1:' + str(self.server.server_port)
         source = (ROOT / 'source/usr/local/emhttp/plugins/nvidia-driver/include/driver-history.php').read_text()
         source = source.replace('/boot/config/plugins/nvidia-driver', str(self.boot))
+        self.loaded_version = self.root / 'loaded-version'
+        self.loaded_description = self.root / 'loaded-description'
+        self.loaded_version.write_text('580.20')
+        self.loaded_description.write_text('NVRM version: NVIDIA UNIX x86_64 Kernel Module 580.20')
+        source = source.replace('/sys/module/nvidia/version', str(self.loaded_version))
+        source = source.replace('/proc/driver/nvidia/version', str(self.loaded_description))
         source = source.replace('/tmp/nvidia-driver-release-', str(self.root / 'release-'))
         source = source.replace('https://api.github.com/repos/unraid/unraid-nvidia-driver/releases', self.url + '/releases')
         source = source.replace('https://raw.githubusercontent.com/unraid/unraid-nvidia-driver/master/versions.json', self.url + '/versions.json')
@@ -229,7 +235,8 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(len(cached), 64)
         self.assertNotIn(orphan, [row['name'] for row in cached])
         self.assertEqual(cached[0]['version'], '590.30')
-        self.assertTrue(self.package(current).is_file())
+        self.assertTrue((self.package(current).parent / 'cache' / current).is_file())
+        self.assertFalse(self.package(current).is_file())
         self.assertTrue(self.package(target).is_file())
         self.assertFalse(self.package(obsolete).is_file())
         count = self.request_count
@@ -272,6 +279,28 @@ class HistoryTest(unittest.TestCase):
         finally:
             process.terminate()
             process.wait(timeout=5)
+
+    def test_downgrade_boot_scan_installs_only_selected_package(self):
+        current = self.add_asset('615.78.08')
+        selected = self.add_asset('615.71.09')
+        self.loaded_version.write_text('615.78.08')
+        self.put_local(current)
+        self.run_php('download', selected)
+        directory = self.package(selected).parent
+        # Unraid rc.modules uses find -maxdepth 1, then installs every matching archive.
+        scanned = subprocess.check_output(['find', str(directory), '-maxdepth', '1', '-type', 'f'], text=True).splitlines()
+        boot_packages = [Path(path).name for path in scanned if path.endswith('.txz')]
+        self.assertEqual(boot_packages, [selected])
+        self.assertTrue((directory / 'cache' / current).is_file())
+        # A broken NVML must not hide the loaded module or delete its backup.
+        (self.bin / 'nvidia-smi').write_text('#!/bin/sh\nexit 1\n')
+        self.run_php('prune', selected)
+        self.assertTrue((directory / 'cache' / current).is_file())
+        count = self.request_count
+        self.run_php('download', current)
+        self.assertEqual(self.request_count, count)
+        self.assertEqual([p.name for p in directory.glob('*.txz')], [current])
+        self.assertEqual(self.run_php('boot').stdout, current)
 
     def test_existing_numeric_selection_boots_exact_local_version(self):
         name = f'nvidia-580.19-{KERNEL}-1.txz'
