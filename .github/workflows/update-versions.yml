@@ -1,154 +1,50 @@
 name: Update Nvidia Driver versions
 
 on:
-  # Set schedule to run every 4 hours
   schedule:
     - cron: '0 */4 * * *'
-
-  # Allow to trigger action manually
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   update-branches:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
 
-    - name: Install dependencies
-      run: sudo apt-get -y install jq tidy wget
+      - name: Sync driver versions from Unraid upstream
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import re
+          from urllib.request import urlopen
 
-    - name: Grab Nvidia Driver versions and update versions.json
-      run: |
-        # Get driver versions from json
-        CUR_PRB="$(jq -r '.branches.production.current' versions.json)"
-        CUR_NFB="$(jq -r '.branches.newfeature.current' versions.json)"
-        CUR_BETA="$(jq -r '.branches.beta.current' versions.json)"
-        CUR_LEGACY="$(jq -r '.branches.legacy.current' versions.json)"
-        CUR_CONTAINER_TOOLKIT="$(jq -r '.runtimes.containertoolkit.current' versions.json)"
-        CUR_LIBNVIDIA="$(jq -r '.runtimes.libnvidia.current' versions.json)"
+          url = 'https://raw.githubusercontent.com/unraid/unraid-nvidia-driver/master/versions.json'
+          with urlopen(url, timeout=30) as response:
+              content = response.read()
+          data = json.loads(content)
+          versions = [data['branches'][key]['current'] for key in ('production', 'newfeature', 'beta', 'legacy')]
+          versions += [data['runtimes'][key]['current'] for key in ('containertoolkit', 'libnvidia')]
+          if not all(re.fullmatch(r'[0-9]+(?:\.[0-9]+)+', version) for version in versions):
+              raise ValueError('Upstream versions.json contains an invalid version')
+          Path('versions.json').write_bytes(content)
+          print('Synced driver and container runtime versions from Unraid upstream')
+          PY
 
-        # Get driver versions
-        RAW_DATA_API="https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/AjaxDriverService.php?func=DriverManualLookup&languageCode=1033&isWHQL=0&dltype=-1&dch=0&upCRD=null&ctk=null&sort1=1&numberOfResults=1"
-        get_ver() {
-          wget -qO- "${RAW_DATA_API}&$1" | grep -oE '"DisplayVersion"[ ]*:[ ]*"[0-9.]+"' | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1
-        }
-
-        PRB="$(get_ver 'psid=133&pfid=1075&osID=12&beta=0&qnf=0&sort1=1')"
-        NFB="$(get_ver 'psid=133&pfid=1075&osID=12&beta=null&qnf=1&sort1=1')"
-        BETA="$(get_ver 'psid=133&pfid=1075&osID=12&beta=1&qnf=0&sort1=1')"
-        LEGACY="$(get_ver 'psid=122&pfid=944&osID=12&beta=0&qnf=0&sort1=1&release=580')"
-
-        # Fall back to alternative URL to get versions
-        if [ -z "${PRB}" ]; then
-          RAW_DATA="$(wget -qO- https://forums.developer.nvidia.com/t/current-graphics-driver-releases/28500 | tidy -quiet -wrap 4096 2>/dev/null || true)"
-          PRB="$(echo "${RAW_DATA}" | grep -i "^Current production branch" | grep -oE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b')"
-          NFB="$(echo "${RAW_DATA}" | grep -i "^Current new feature branch" | grep -oE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b')"
-          BETA="$(echo "${RAW_DATA}" | grep -i "^Current beta" | grep -oE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b')"
-          LEGACY="$(echo "${RAW_DATA}" | grep -i -A1 '>Legacy releases' | grep -oE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b' | tail -1)"
-        fi
-
-        # Fallback for "new" legacy driver (since it seems Nvidia didn't update their main site with the "new" 580.x legacy drivers - still the old ones 470.x)
-        if [ -z "$LEGACY" ]; then
-          if [ -z "${RAW_DATA}" ] ; then
-            RAW_DATA="$(wget -qO- https://forums.developer.nvidia.com/t/current-graphics-driver-releases/28500 | tidy -quiet -wrap 4096 2>/dev/null || true)"
+      - name: Commit changed version metadata
+        run: |
+          if git diff --quiet -- versions.json; then
+            echo "Version metadata is already up to date"
+            exit 0
           fi
-          LEGACY="$(echo "${RAW_DATA}" | grep -i -A1 '>Legacy releases' | grep -oE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b' | tail -1)"
-        fi
-
-        #Get latest containertoolkit and libnvida versions
-        CONTAINER_TOOLKIT="$(curl -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} -s https://api.github.com/repos/unraid/nvidia-container-toolkit/releases/latest | jq -r '.tag_name')"
-        LIBNVIDIA="$(curl -u ${{ github.actor }}:${{ secrets.GITHUB_TOKEN }} -s https://api.github.com/repos/unraid/libnvidia-container/releases/latest | jq -r '.tag_name')"
-
-        # Exit if no versions are returned 
-        if [[ -z "${PRB}" && -z "${RAW_DATA}" ]]; then
-          exit 1
-        fi
-
-        # Display driver versions
-        echo "Current versions:"
-        echo "Production Branch:   $CUR_PRB"
-        echo "New Feature Branch:  $CUR_NFB"
-        echo "Beta Branch:         $CUR_BETA"
-        echo "Legacy Branch:       $CUR_LEGACY"
-        echo "Container Toolkit:   $CUR_CONTAINER_TOOLKIT"
-        echo "libnvidia Container: $CUR_LIBNVIDIA"
-        echo
-        echo "Newly grabbed versions:"
-        echo "Production Branch:   $PRB"
-        echo "New Feature Branch:  $NFB"
-        echo "Beta Branch:         $BETA"
-        echo "Legacy Branch:       $LEGACY"
-        echo "Container Toolkit:   $CONTAINER_TOOLKIT"
-        echo "libnvidia Container: $LIBNVIDIA"
-
-        # Make sure jq command is valid even if nothing changed
-        JQ_COMMAND='.'
-
-        # Check if new versions are version numbers and if they are newer
-        if echo "${PRB}" | grep -qE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b' ; then
-          if [ "${CUR_PRB}" != "${PRB}" ]; then
-            JQ_COMMAND+=" | .branches.production.current = \$prb_current"
-            JQ_COMMAND+=" | .branches.production.last_prb = \$last_prb"
-            # Trigger build
-            curl -s -X POST -L --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} "${{ secrets.JENKINS_URL }}?PACKAGES=nvidia-prb"
-          fi
-        fi
-        if echo "${NFB}" | grep -qE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b' ; then
-          if [ "${CUR_NFB}" != "${NFB}" ]; then
-            JQ_COMMAND+=" | .branches.newfeature.current = \$nfb_current"
-            JQ_COMMAND+=" | .branches.newfeature.last_nfb = \$last_nfb"
-            # Trigger build
-            curl -s -X POST -L --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} "${{ secrets.JENKINS_URL }}?PACKAGES=nvidia-nfb"
-          fi
-        fi
-        if echo "${BETA}" | grep -qE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b' ; then
-          if [ "${CUR_BETA}" != "${BETA}" ]; then
-            JQ_COMMAND+=" | .branches.beta.current = \$beta"
-            curl -s -X POST -L --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} "${{ secrets.JENKINS_URL }}?PACKAGES=nvidia-beta"
-          fi
-        fi
-        if echo "${LEGACY}" | grep -qE '\b[0-9]+\.[0-9]+(\.[0-9]+)?\b' ; then
-          if [ "${CUR_LEGACY}" != "${LEGACY}" ]; then
-            JQ_COMMAND+=" | .branches.legacy.current = \$legacy"
-          fi
-        fi
-        if echo "${CONTAINER_TOOLKIT}" | grep -qE '^\b[0-9]+(\.[0-9]+)*\b$'; then
-          JQ_COMMAND+=" | .runtimes.containertoolkit.current = \$containertoolkit"
-        fi
-        if echo "${LIBNVIDIA}" | grep -qE '^\b[0-9]+(\.[0-9]+)*\b$'; then
-          JQ_COMMAND+=" | .runtimes.libnvidia.current = \$libnvidia"
-        fi
-
-        # Execute jq command
-        jq --arg prb_current "$PRB" \
-           --arg last_prb "$CUR_PRB" \
-           --arg nfb_current "$NFB" \
-           --arg last_nfb "$CUR_NFB" \
-           --arg beta "$BETA" \
-           --arg legacy "$LEGACY" \
-           --arg containertoolkit "$CONTAINER_TOOLKIT" \
-           --arg libnvidia "$LIBNVIDIA" \
-          "$JQ_COMMAND" versions.json > tmp.json && mv tmp.json versions.json
-
-        # Check if commit is necessary
-        if [[ -z $(git status --porcelain) ]]; then
-          echo "No changes, skipping commit"
-          echo "COMMIT=false" >> $GITHUB_ENV
-        else
-          echo "COMMIT=true" >> $GITHUB_ENV
-        fi
-
-    - name: Commit and push changes
-      if: env.COMMIT == 'true'
-      run: |
-        git config user.name 'github-actions[bot]'
-        git config user.email 'github-actions[bot]@users.noreply.github.com'
-        git add versions.json
-        git commit -m "Update versions"
-        git push
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add versions.json
+          git commit -m "Sync Nvidia driver versions from upstream"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

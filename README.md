@@ -49,6 +49,12 @@ bash source/makepkg-unraid.sh
 
 发布新版本时，先修改 `.plg` 的版本号和更新说明，再构建，并将源码、`.plg` 及对应的两个发布包文件一起提交。
 
+## 仓库版本信息同步
+
+GitHub Actions 的 `Update Nvidia Driver versions` 每 4 小时同步一次 Unraid 上游的 `versions.json`，有变化时才提交，也可在 Actions 页面手动运行。本 fork 使用上游提供的驱动包，版本同步任务不调用上游私有的 Jenkins 构建服务，无需配置 Jenkins 凭据。
+
+该任务更新仓库的版本信息文件；安装在 Unraid 上的插件仍按前述方式从上游获取驱动和版本信息。
+
 ## 反馈与来源
 
 - 中文版反馈：[Issues](https://github.com/EEEEgoose/unraid-nvidia-driver-zh/issues)
